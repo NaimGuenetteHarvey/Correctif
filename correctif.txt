@@ -1,0 +1,56 @@
+Correctif 1 — Durcir SSH (désactiver l’authentification par mot de passe, règles UFW, fail2ban)
+
+Exploit bloqué : la connexion SSH avec mot de passe utilisée (PuTTY → bob avec Sophie2014!).
+Étape cassée : étape 2–3 de ton exploit (connexion SSH + login bob par mot de passe).
+Résultat attendu quand on tente la connexion :
+
+ssh bob@192.168.220.10 → Permission denied (publickey).
+
+Ou via PuTTY : message d’erreur Access denied / Disconnected après tentative d’authentification par mot de passe.
+Remarque sur contournement :
+
+Si l’attaquant possède déjà une clé SSH valide autorisée sur le serveur, il pourra toujours se connecter — il faut s’assurer que seules les clés des admins légitimes sont présentes dans ~/.ssh/authorized_keys.
+
+Si l’attaquant a accès physique/console hors-bande (KVM), il peut toujours compromettre la machine — défense en profondeur nécessaire.
+
+Correctif 2 — Permissions fichiers web + ACL / compte webdeploy
+
+Exploit bloqué : la modification directe des fichiers /var/www/html/contact.html et realisation.html par l’utilisateur bob (étapes 4–7 : cd /var/www/html, nano contact.html, sauvegarde).
+Étape cassée : étape 4–7 de ton exploit (listage + édition des fichiers web).
+Résultat attendu quand bob essaye d’éditer :
+
+nano /var/www/html/contact.html → Error: Permission denied ou E212: Can't open file for writing (selon l’éditeur).
+
+echo "x" > /var/www/html/contact.html → bash: /var/www/html/contact.html: Permission denied
+Remarque sur contournement :
+
+Si bob peut obtenir sudo (ex. sudo -s) ou appartenir au groupe www-data avec écriture, il pourra toujours modifier — il faut retirer bob de ces groupes et vérifier /etc/sudoers.
+
+Si un processus web vulnérable (upload, RCE via PHP) est présent, l’attaquant peut modifier les fichiers via le serveur web — corriger aussi les vulnérabilités applicatives.
+
+Correctif 3 — Politique mots de passe + AIDE (détection intégrité)
+
+Exploit bloqué / rendu inefficace : l’utilisation d’un mot de passe faible (p.ex. Sophie2014!) pour compromettre un compte et la furtivité de la modification (AIDE permettra de détecter post-facto la modification).
+Étape cassée :
+
+Étape 3 (connexion par mot de passe faible) devient plus difficile car les mots de passe faibles sont refusés et l’utilisateur sera invité à changer le mot de passe ou le compte verrouillé.
+
+Étape finale (cacher traces) : si l’attaquant modifie un fichier, AIDE signale la modification (log/report), ce qui facilite la détection et la preuve.
+Résultat attendu :
+
+Tentative login avec mot de passe faible → soit changement forcé (You must change your password) soit échec si compte verrouillé.
+
+sudo aide --check → rapport listant fichiers modifiés (inclus contact.html), permettant capture d’écran de la détection.
+Remarque sur contournement :
+
+Si l’attaquant a déjà accès au compte (a déjà changé le mot de passe), forcer la politique après coup n’empêche pas la modification passée ; AIDE permet seulement de détecter l’incident.
+
+AIDE avertit mais n’empêche pas automatiquement — compléter par alerting et réponse (SOC).
+
+Synthèse — correspondance rapide exploit → correctif qui le bloque
+
+Connexion SSH par mot de passe (bob / Sophie2014!) → bloquée par Correctif 1 (SSH hardening).
+
+Édition directe de /var/www/html par bob → bloquée par Correctif 2 (permissions/ACL).
+
+Réussir via mot de passe faible + rester indétecté → difficile / détecté par Correctif 3 (politique de mot de passe + AIDE).
